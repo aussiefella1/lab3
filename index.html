@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<base target="_top">
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		
+		<title>Earthquakes with dropdown menu</title>
+		
+		<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.2/dist/leaflet.css" integrity="sha256-sA+zWATbFveLLNqWO2gtiw3HL/lh1giY/Inf1BJ0z14=" crossorigin=""/>
+		<script src="https://unpkg.com/leaflet@1.9.2/dist/leaflet.js" integrity="sha256-o9N1jGDZrf5tS+Ft4gbIK7mYMipq9lqpVJ91xHSyKhg=" crossorigin=""></script>
+		<!-- jQuery -->
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+		<link rel="stylesheet" href="legend/leaflet.legend.css" />
+		<script src="legend/leaflet.legend.js"></script>
+		<!-- Google font -->
+		<link rel="preconnect" href="https://fonts.googleapis.com">
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+		<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600&display=swap" rel="stylesheet">
+	</head>
+	<body>
+			<h1>Earthquakes that have occurred in the past 24 hours</h1>
+			
+			<!-- code where we create and name the container that holds the map -->
+			<div id="map" style="height: 90vh"></div>
+			
+			<p>This map depicts all earthquakes that have occurred in the past 24 hours. Data comes from the <a href="https://earthquake.usgs.gov/earthquakes/feed/v1.0/geojson.php">USGS Live Earthquake Feed</a> and is updated every minute. Additionally, the map shows active faults using data from the <a href = "https://github.com/cossatot/gem-global-active-faults">GEM Foundation's Global Active Faults Database</a>. Click on an earthquake to find out more information about the event.</p>
+			<p>The Pacific Northwest lies along the Cascadia fault. Tectonic activity along this fault could cause a catastrophic earthquake that would produce major damage throughout our region. Learn about how researchers at the University of Washington are modelling earthquake risk and preparing for disaster response at the <a href="https://hazards.uw.edu/geology/m9/">M9 Project</a>.</p>
+			
+			<!-- link that loads the fault line data from an external file -->
+			<script type="text/javascript" src="data/faults.js"></script>
+			<!-- link that loads the plate polys external file -->
+			<script type="text/javascript" src="data/plates.js"></script>
+		<style>
+			body {
+				font-family: sans-serif;
+				max-width: 900px;
+				margin: auto;
+				background-color:  #cce4ff;
+			}
+			h1{
+				text-align: center;
+				font-family: 'Montserrat', sans-serif;
+			}
+			#map{
+				border: 2px solid;
+				padding: 10px;
+				box-shadow: 6px 4px 8px 4px;
+				border-radius: 12px;
+			}
+		</style>
+		<script>
+			
+			// Lab 2
+			// Basemaps
+			// OpenStreetMap layer
+			var OpenStreetMap_Mapnik = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+			maxZoom: 19,
+			attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+			});
+			// OpenTopoMap layer
+			var OpenTopoMap = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+			maxZoom: 17,
+			attribution: 'Map data: &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, <a href="http://viewfinderpanoramas.org">SRTM</a> | Map style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/">CC-BY-SA</a>)'
+			});
+			// Esri Satellite
+			var Esri_WorldImagery = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+			attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+			});
+			// Overlays
+			var earthquakes = L.layerGroup();
+			var USGS = $.getJSON("https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson",function(data){
+			// add GeoJSON layer to the map once the file is loaded
+				L.geoJson(data, {
+					pointToLayer: function(feature, latlng){
+						var radiusSize;
+						var mag = feature.properties.mag;
+							if (mag > 4.5) radiusSize = 10;
+							else if ( mag > 2.5) radiusSize = 6;
+							else if (mag > 1) radiusSize = 4;
+							else radiusSize = 2;
+							var marker = L.circleMarker(latlng, {radius: radiusSize, color: 'black'});
+						marker.bindPopup("Location: " + feature.properties.place + "<br>Magnitude: " + feature.properties.mag + "<br><a href =" + feature.properties.url + ">More info</a>");
+						return marker;
+					}
+				}).addTo(earthquakes);
+		});
+			// fault types and color specs. Several fault types had to be ajusted as they appeared differently in Json.
+			var faultColors = {
+					//normal and subtypes (red)
+					'Normal': "#e41a1c",
+					'Normal-Dextral': "#e41a1c",
+					'Normal-Sinistral': "#e41a1c",
+					'Normal-Strike-Slip': "#e41a1c",
+					//reverse and subtypes (blue)
+					'Reverse': "#377eb8",
+					'Reverse-Dextral': "#377eb8",
+					'Reverse-Sinistral': "#377eb8",
+					'Reverse-Strike-Slip': "#377eb8",
+					//sinistral and subtypes (green)
+					'Sinistral': "#4daf4a",
+					'Sinistral_Transform': "#4daf4a",
+					'Sinistral-Normal': "#4daf4a",
+					'Sinistral-Reverse': "#4daf4a",
+					//dextral and subtypes (purple)
+					'Dextral': "#984ea3",
+					'Dextral_Transform': "#984ea3",
+					'Dextral-Normal': "#984ea3",
+					'Dextral-Oblique': "#984ea3",
+					'Dextral-Reverse': "#984ea3",
+					//other fault types (orange)
+					'Anticline': '#ff7f00',
+					'Blind Thrust': "#ff7f00",
+					'Spreading_Ridge': "#ff7f00",
+					'Strike-Slip': "#ff7f00",
+					'Subduction_Thrust': "#ff7f00",
+					'Syncline': "#ff7f00",
+				};	
+			// Fault lines layer with popup included name and catalog id.
+			var fault_lines = L.geoJSON(faults, {
+				onEachFeature: function (feature, layer) {
+				layer.bindPopup('<p>Fault name: '+feature.properties.name+'<br>Catalog ID: '+feature.properties.catalog_id+'</p>');
+				},
+				style: function(feature) {
+					if (feature.properties.slip_type != null){
+						return {"color": faultColors[feature.properties.slip_type]};
+					}
+					else {
+						return {"color": "grey"};
+					}
+				}
+				});
+				var myStyle = {
+				"color": "#ADD8E6",
+				"weight": 3,
+				"opacity": 0.65
+				};
+			// Plates layers added
+			var plates = L.geoJSON(plates, {
+				style: myStyle,
+				onEachFeature: function (feature, layer) {
+				layer.bindPopup('<p>Plate name: '+feature.properties.PlateName+'</p>');
+				}
+				})
+			var map = L.map('map', {
+				center: [0, 0],
+				zoom: 2,
+				layers: [OpenStreetMap_Mapnik, earthquakes, fault_lines]
+			});
+			
+			var baseLayers = {
+				'OpenStreetMap': OpenStreetMap_Mapnik,
+				'OSM topo': OpenTopoMap,
+				'ESRI Satellite': Esri_WorldImagery
+			};
+			var overlays = {
+				'Earthquakes': earthquakes,
+				'Fault lines': fault_lines,
+				'Plates': plates,
+
+			};
+
+			var layerControl = L.control.layers(baseLayers, overlays).addTo(map);
+			
+			//Fault line legend
+			var Legend1 = L.control.Legend({
+				position: "bottomright",
+				title: "Fault Types",
+				opacity:0.75,
+				legends: [
+						{
+							label: "Normal",
+							type: "polyline",
+							color: "#e41a1c",
+							weight: 4
+						},
+						{
+							label: "Reverse",
+							type: "polyline",
+							color: "#377eb8",
+							weight: 4
+						},
+						{
+							label: "Sinistral",
+							type: "polyline",
+							color: "#4daf4a",
+							weight: 4
+						},
+						{
+							label: "Dextral",
+							type: "polyline",
+							color: "#984ea3",
+							weight: 4
+						},
+						{
+							label: "Other",
+							type: "polyline",
+							color: "#ff7f00",
+							weight: 4
+						},
+						{
+							label: "Null",
+							type: "polyline",
+							color: "#808080",
+							weight: 4
+						}
+				]
+			}).addTo(map);
+			//Earthquake legend
+			var Legend2 = L.control.Legend({
+					position: "bottomleft",
+					title: "Earthquake Magnitude",
+					opacity:0.75,
+					legends: [
+						{
+							label: "Less than 1",
+							type: "circle",
+							radius: 2,
+							color: "black",
+							fill: true,
+							fillOpacity: "0.4"
+						},
+						{
+							label: "Between 1 and 2.5",
+							type: "circle",
+							radius: 4,
+							color: "black",
+							fill: true,
+							fillOpacity: "0.4"
+						},
+						{
+							label: "Between 2.5 and 4.5",
+							type: "circle",
+							radius: 6,
+							color: "black",
+							fill: true,
+							fillOpacity: "0.4"
+						},
+						{
+							label: "Greater than 4.5",
+							type: "circle",
+							radius: 10,
+							color: "black",
+							fill: true,
+							fillOpacity: "0.4"
+						}
+				]
+			}).addTo(map);
+			
+		</script>
+	</body>
+</html>
